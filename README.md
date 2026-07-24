@@ -16,3 +16,8 @@ This project applies modern software engineering practices—version control, co
 ## Getting Started
 
 Clone this repository and open it in your editor. Setup and usage instructions will be added as the project develops.
+
+
+## Project Status
+
+This repository is currently being set up as part of the AI-assisted Software Engineering internship.
