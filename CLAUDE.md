@@ -19,3 +19,8 @@ This repository is created for the AI-assisted Software Engineering Internship.
 - Explain major changes before implementing them.
 - Prefer simple solutions over complex ones.
 - Keep documentation up to date.
+
+## Additional Guidelines
+
+- Keep commits small and descriptive.
+- Update documentation when making significant changes.
