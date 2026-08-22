@@ -1,0 +1,16 @@
+{
+  "name": "ai-capstone",
+  "version": "1.0.0",
+  "description": "AI-assisted Software Engineering Internship capstone project",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^4.21.2"
+  }
+}

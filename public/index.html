@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI Capstone Project</title>
+    <link rel="stylesheet" href="/css/styles.css" />
+  </head>
+  <body>
+    <div class="container">
+      <header>
+        <h1 id="project-title">AI Capstone Project</h1>
+        <p>AI-assisted Software Engineering Internship</p>
+      </header>
+
+      <nav>
+        <a href="/settings.html">Project Settings</a>
+      </nav>
+
+      <section class="card">
+        <p>
+          Welcome to the capstone repository. Use the settings page to configure
+          project preferences such as display name, theme, and notifications.
+        </p>
+      </section>
+    </div>
+
+    <script>
+      fetch("/api/settings")
+        .then((response) => response.json())
+        .then((settings) => {
+          document.getElementById("project-title").textContent =
+            settings.projectName;
+          document.body.classList.toggle("theme-dark", settings.theme === "dark");
+        })
+        .catch(() => {});
+    </script>
+  </body>
+</html>
