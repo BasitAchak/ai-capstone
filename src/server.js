@@ -63,12 +63,14 @@ function createApp(options = {}) {
   const publicPath = options.publicPath || path.join(__dirname, "..", "public");
   const app = express();
 
+  let currentSettings = readSettings(settingsPath);
+
   app.use(express.json());
   app.use(express.static(publicPath));
 
   app.get("/api/settings", (_request, response) => {
-    response.json(readSettings(settingsPath));
-  });
+  response.json(currentSettings);
+});
 
   app.put("/api/settings", (request, response) => {
     const errors = validateSettings(request.body || {});
@@ -84,7 +86,12 @@ function createApp(options = {}) {
       notificationsEnabled: request.body.notificationsEnabled === true,
     };
 
-    writeSettings(settingsPath, settings);
+        currentSettings = settings;
+
+    if (process.env.VERCEL !== "1") {
+      writeSettings(settingsPath, settings);
+    }
+
     return response.json(settings);
   });
 
