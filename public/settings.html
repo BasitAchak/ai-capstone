@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Project Settings | AI Capstone</title>
+    <link rel="stylesheet" href="/css/styles.css" />
+  </head>
+  <body>
+    <main class="container">
+      <header class="page-header">
+        <p class="eyebrow">Workspace preferences</p>
+        <h1>Project settings</h1>
+        <p class="lede">Update the details that shape this project.</p>
+      </header>
+      <nav aria-label="Primary navigation">
+        <a href="/">Back to home</a>
+      </nav>
+      <section class="panel" aria-labelledby="settings-heading">
+        <h2 id="settings-heading">Project details</h2>
+        <form id="settings-form" novalidate>
+          <div class="form-group">
+            <label for="projectName">Project name</label>
+            <input id="projectName" name="projectName" type="text" maxlength="80" required aria-describedby="projectName-error" />
+            <p id="projectName-error" class="field-error" role="alert"></p>
+          </div>
+          <div class="form-group">
+            <label for="developerName">Developer name</label>
+            <input id="developerName" name="developerName" type="text" maxlength="80" required aria-describedby="developerName-error" />
+            <p id="developerName-error" class="field-error" role="alert"></p>
+          </div>
+          <div class="form-group">
+            <label for="theme">Theme</label>
+            <select id="theme" name="theme">
+              <option value="light">Light</option>
+              <option value="dark">Dark</option>
+            </select>
+          </div>
+          <div class="form-group checkbox-group">
+            <input id="notificationsEnabled" name="notificationsEnabled" type="checkbox" />
+            <label for="notificationsEnabled">Enable notifications</label>
+          </div>
+          <div class="actions">
+            <button type="submit">Save settings</button>
+            <button type="button" class="secondary" id="reset-button">Reset</button>
+          </div>
+          <p id="status" class="status" role="status" aria-live="polite"></p>
+        </form>
+      </section>
+      <section class="panel assistant-panel" aria-labelledby="assistant-heading">
+        <h2 id="assistant-heading">Project Assistant</h2>
+        <div id="assistant-messages" class="assistant-messages" aria-live="polite" aria-label="Assistant conversation"></div>
+        <p id="assistant-thinking" class="thinking" hidden>Thinking...</p>
+        <form id="assistant-form" class="assistant-form">
+          <label for="assistant-input">Ask about your project settings</label>
+          <textarea id="assistant-input" rows="3" maxlength="4000" required placeholder="How should I configure this project?"></textarea>
+          <div class="assistant-actions">
+            <button type="submit" id="assistant-send">Send</button>
+            <button type="button" class="secondary" id="assistant-stop" disabled>Stop</button>
+          </div>
+          <p id="assistant-status" class="status" role="status" aria-live="polite"></p>
+        </form>
+      </section>
+    </main>
+    <script src="/js/settings.js"></script>
+  </body>
+</html>

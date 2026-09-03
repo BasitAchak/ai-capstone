@@ -1,0 +1,20 @@
+{
+  "name": "ai-capstone",
+  "version": "1.0.0",
+  "private": true,
+  "description": "AI-assisted Software Engineering Internship capstone project",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "dotenv": "^17.4.2",
+    "express": "^4.22.2",
+    "openai": "^7.9.0"
+  },
+  "devDependencies": {
+    "supertest": "^7.1.4"
+  }
+}
