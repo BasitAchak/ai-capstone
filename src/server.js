@@ -139,17 +139,19 @@ function createApp(options = {}) {
   return app;
 }
 
+const app = createApp();
+
 if (require.main === module) {
   const port = process.env.PORT || 3000;
-  createApp().listen(port, () => {
+  app.listen(port, () => {
     console.log(`Server running at http://localhost:${port}`);
   });
 }
 
-module.exports = {
-  DEFAULT_SETTINGS,
-  createApp,
-  validateRequiredName,
-  validateSettings,
-  validateAssistantRequest,
-};
+module.exports = app;
+
+module.exports.DEFAULT_SETTINGS = DEFAULT_SETTINGS;
+module.exports.createApp = createApp;
+module.exports.validateRequiredName = validateRequiredName;
+module.exports.validateSettings = validateSettings;
+module.exports.validateAssistantRequest = validateAssistantRequest;
