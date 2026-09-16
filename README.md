@@ -51,3 +51,20 @@ suggest changes, but settings are never changed automatically by an AI response.
 
 The project includes a small Express application with a home page and a
 Project Settings page for project identity, theme, and notifications.
+
+## Generative UI Tool
+
+This project includes a server-side tool called `get_project_info`.
+
+### Tool Contract
+
+**Tool name:** `get_project_info`
+
+**Purpose:** Retrieves the current project settings and returns them as structured data for the UI.
+
+**Input schema:**
+
+```json
+{
+  "includeNotifications": "boolean"
+}

@@ -12,7 +12,8 @@
   "dependencies": {
     "dotenv": "^17.4.2",
     "express": "^4.22.2",
-    "openai": "^7.9.0"
+    "openai": "^7.9.0",
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "supertest": "^7.1.4"

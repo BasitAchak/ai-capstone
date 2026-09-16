@@ -1,34 +1,75 @@
 <!doctype html>
 <html lang="en">
   <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>AI Capstone Project</title>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI Capstone Assistant</title>
     <link rel="stylesheet" href="/css/styles.css" />
   </head>
+
   <body>
-    <main class="container">
-      <header class="page-header">
-        <p class="eyebrow">AI-assisted Software Engineering Internship</p>
-        <h1 id="project-title">AI Capstone Project</h1>
-        <p class="lede">A small workspace for building thoughtful software with AI.</p>
+    <main class="app">
+      <header class="hero">
+        <div>
+          <p class="eyebrow">AI CAPSTONE</p>
+          <h1>Project Assistant</h1>
+          <p class="subtitle">
+            Ask questions about the current project configuration.
+          </p>
+        </div>
+
+        <a class="settings-link" href="/settings.html">
+          Settings
+        </a>
       </header>
-      <nav aria-label="Primary navigation">
-        <a class="button-link" href="/settings.html">Open project settings</a>
-      </nav>
-      <section class="panel" aria-labelledby="welcome-title">
-        <h2 id="welcome-title">Welcome back</h2>
-        <p>Keep the project identity, appearance, and notification preferences in one place.</p>
+
+      <section class="assistant-card">
+        <div id="messages" class="messages" aria-live="polite"></div>
+
+        <form id="assistant-form" class="assistant-form">
+          <input
+            id="message-input"
+            name="message"
+            type="text"
+            autocomplete="off"
+            placeholder="Ask about the project..."
+            maxlength="4000"
+            required
+          />
+
+          <button id="send-button" type="submit">
+            Send
+          </button>
+        </form>
+
+        <div class="quick-actions">
+          <button
+            type="button"
+            class="quick-action"
+            data-message="Show me the current project information."
+          >
+            Project info
+          </button>
+
+          <button
+            type="button"
+            class="quick-action"
+            data-message="Show me the current settings."
+          >
+            Current settings
+          </button>
+
+          <button
+            type="button"
+            class="quick-action"
+            data-message="Use the tool test."
+          >
+            Tool test
+          </button>
+        </div>
       </section>
     </main>
-    <script>
-      fetch("/api/settings")
-        .then((response) => response.json())
-        .then((settings) => {
-          document.getElementById("project-title").textContent = settings.projectName;
-          document.body.classList.toggle("theme-dark", settings.theme === "dark");
-        })
-        .catch(() => {});
-    </script>
+
+    <script src="/js/app.js"></script>
   </body>
 </html>
