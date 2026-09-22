@@ -142,17 +142,62 @@ assistantForm.addEventListener("submit", async (event) => {
 
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
+    let buffer = "";
+    let streamError = "";
+
+    /*
+     * The stream is newline-delimited JSON. Only complete lines are parsed, so
+     * a connection dropped mid-token leaves a partial line in the buffer and is
+     * never rendered as text.
+     */
+    const handleLine = (line) => {
+      if (!line.trim()) return;
+      let event;
+      try {
+        event = JSON.parse(line);
+      } catch {
+        return;
+      }
+
+      if (event.type === "text") {
+        receivedText += event.text;
+        assistantThinking.hidden = true;
+        assistantElement.textContent = receivedText;
+        scrollAssistantIfNearBottom();
+        return;
+      }
+
+      if (event.type === "error" || event.type === "tool-error") {
+        streamError = event.message || "The assistant could not finish.";
+      }
+    };
+
     while (true) {
       const { value, done } = await reader.read();
       if (done) break;
-      receivedText += decoder.decode(value, { stream: true });
-      assistantThinking.hidden = true;
-      assistantElement.textContent = receivedText;
-      scrollAssistantIfNearBottom();
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() || "";
+      for (const line of lines) handleLine(line);
     }
-    receivedText += decoder.decode();
-    assistantElement.textContent = receivedText;
-    conversation.push({ role: "assistant", content: receivedText });
+    if (buffer.trim()) handleLine(buffer);
+
+    assistantThinking.hidden = true;
+
+    if (streamError) {
+      // Partial output is kept on screen; the error explains why it stops there.
+      assistantStatus.textContent = streamError;
+      assistantStatus.className = "status error";
+      if (!receivedText) assistantElement.remove();
+      if (receivedText) conversation.push({ role: "assistant", content: receivedText });
+    } else if (receivedText.trim()) {
+      conversation.push({ role: "assistant", content: receivedText });
+    } else {
+      assistantStatus.textContent = "The assistant returned an empty response.";
+      assistantStatus.className = "status error";
+      assistantElement.remove();
+      conversation.pop();
+    }
   } catch (error) {
     if (error.name === "AbortError") {
       assistantStatus.textContent = "Response stopped. The partial response was kept.";

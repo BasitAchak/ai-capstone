@@ -44,6 +44,15 @@ function createAiRequest(messages) {
       },
       ...messages,
     ],
+    /*
+     * This request never attaches the tool definition, but the system prompt
+     * mentions get_project_info by name so the model can be seen trying to
+     * call it anyway. Groq rejects that outright ("Tool choice is none, but
+     * model called a tool") since no tools array was offered. tool_choice:
+     * "none" tells the model explicitly not to attempt a call here, closing
+     * the gap between what the prompt describes and what this request offers.
+     */
+    tool_choice: "none",
   };
 }
 

@@ -97,7 +97,10 @@ test("assistant reports missing configuration without an API key", async () => {
   const response = await request(app).post("/api/assistant/stream").send({ message: "What theme is available?" });
 
   assert.equal(response.status, 503);
-  assert.equal(response.body.error, "The assistant is not configured.");
+  assert.equal(response.body.code, "not_configured");
+  assert.equal(response.body.retryable, false);
+  // The message names the fix rather than only reporting the fault.
+  assert.match(response.body.error, /GROQ_API_KEY/);
 });
 
 test("assistant forwards Groq text deltas as a real stream", async () => {
@@ -128,7 +131,19 @@ test("assistant forwards Groq text deltas as a real stream", async () => {
   const response = await request(streamedApp).post("/api/assistant/stream").send({ message: "What theme is available?" });
 
   assert.equal(response.status, 200);
-  assert.equal(response.text, "Use light theme.");
+
+  const events = response.text
+    .trim()
+    .split("\n")
+    .map((line) => JSON.parse(line));
+
+  const streamedText = events
+    .filter((event) => event.type === "text")
+    .map((event) => event.text)
+    .join("");
+
+  assert.equal(streamedText, "Use light theme.");
+  assert.equal(events.at(-1).type, "done");
   assert.equal(calls[0].messages.at(-1).content, "What theme is available?");
   assert.equal(calls[0].stream, true);
 });

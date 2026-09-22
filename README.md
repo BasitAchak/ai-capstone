@@ -68,3 +68,20 @@ This project includes a server-side tool called `get_project_info`.
 {
   "includeNotifications": "boolean"
 }
+
+## Resilience
+
+Failure and edge cases in the assistant flow are handled deliberately rather
+than left to defaults: offline sends, mid-stream interruption, rate limiting,
+provider outage, malformed tool output, slow and hanging responses, empty
+responses, empty input, and first-run empty state.
+
+Each one is reproducible on the deployed URL from the **Failure testing**
+panel at the bottom of the page. See `FAILURE-STATES.md` for the full
+inventory, the review script, and the reasoning behind each decision.
+
+Set `SABOTAGE_DISABLED=1` to remove the injection mechanism in production.
+
+The assistant stream is newline-delimited JSON for both the chat and tool
+flows, so a connection dropped mid-token leaves an incomplete line buffered
+rather than rendering as broken text.

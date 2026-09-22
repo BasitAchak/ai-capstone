@@ -2,12 +2,34 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+    />
     <title>AI Capstone Assistant</title>
     <link rel="stylesheet" href="/css/styles.css" />
   </head>
 
   <body>
+    <div
+      id="connection-banner"
+      class="connection-banner"
+      role="status"
+      hidden
+    >
+      You are offline. Messages will not send until the connection returns.
+    </div>
+
+    <div id="app-error" class="app-error" role="alert" hidden>
+      <div>
+        <strong>The page hit an unexpected error</strong>
+        <p class="app-error-detail"></p>
+      </div>
+      <button id="app-error-reload" type="button" class="app-error-reload">
+        Reload
+      </button>
+    </div>
+
     <main class="app">
       <header class="hero">
         <div>
@@ -18,27 +40,31 @@
           </p>
         </div>
 
-        <a class="settings-link" href="/settings.html">
-          Settings
-        </a>
+        <a class="settings-link" href="/settings.html">Settings</a>
       </header>
 
       <section class="assistant-card">
         <div id="messages" class="messages" aria-live="polite"></div>
 
         <form id="assistant-form" class="assistant-form">
+          <label class="visually-hidden" for="message-input">
+            Message the assistant
+          </label>
+
           <input
             id="message-input"
             name="message"
             type="text"
             autocomplete="off"
+            enterkeyhint="send"
             placeholder="Ask about the project..."
             maxlength="4000"
-            required
           />
 
-          <button id="send-button" type="submit">
-            Send
+          <button id="send-button" type="submit">Send</button>
+
+          <button id="stop-button" type="button" class="stop-button" hidden>
+            Stop
           </button>
         </form>
 
@@ -68,6 +94,39 @@
           </button>
         </div>
       </section>
+
+      <!--
+        Failure injection panel.
+
+        Failure states are part of the product, so they need to be
+        demonstrable on the deployed URL rather than only reproducible on a
+        throttled laptop. Selecting a mode adds an x-sabotage header to the
+        next request. Set SABOTAGE_DISABLED=1 on the server to switch it off.
+      -->
+      <details class="sabotage-panel">
+        <summary>Failure testing</summary>
+
+        <div class="sabotage-body">
+          <label for="sabotage-mode">Inject a failure on the next send</label>
+
+          <select id="sabotage-mode">
+            <option value="">None — normal behaviour</option>
+            <option value="mid-stream">Kill the stream mid-response</option>
+            <option value="rate-limit">Rate limited (429)</option>
+            <option value="provider-down">Provider unavailable (502)</option>
+            <option value="slow">Slow response (6s delay)</option>
+            <option value="hang">Hang — never responds</option>
+            <option value="empty">Empty response</option>
+            <option value="malformed-tool">Tool returns malformed JSON</option>
+            <option value="tool-failure">Tool execution fails</option>
+          </select>
+
+          <p class="sabotage-note">
+            Offline behaviour is separate: use DevTools → Network → Offline,
+            or turn off Wi-Fi on a phone.
+          </p>
+        </div>
+      </details>
     </main>
 
     <script src="/js/app.js"></script>
