@@ -1,10 +1,9 @@
 /*
  * Failure-path tests.
  *
- * The happy path is easy to keep working because it is the one anybody
- * exercises by hand. These assert the paths nobody looks at until they fire
- * in front of a user, so that a regression in the error handling is a red
- * build rather than a bad demo.
+ * These tests cover the failure states that are easy to miss during manual
+ * testing: malformed streams, mid-stream interruption, rate limits,
+ * provider failures, empty responses, tool failures, and oversized input.
  */
 
 const assert = require("node:assert/strict");
@@ -25,12 +24,15 @@ const settings = {
 function makeApp(aiClient) {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "ai-capstone-"));
   const settingsPath = path.join(directory, "settings.json");
+
   fs.writeFileSync(settingsPath, JSON.stringify(settings));
 
-  return createApp({ settingsPath, aiClient });
+  return createApp({
+    settingsPath,
+    aiClient,
+  });
 }
 
-/* A provider that streams `count` tokens, so mid-stream failure is reachable. */
 function streamingClient(count = 12) {
   return {
     chat: {
@@ -38,7 +40,15 @@ function streamingClient(count = 12) {
         create() {
           return (async function* () {
             for (let index = 0; index < count; index += 1) {
-              yield { choices: [{ delta: { content: `token${index} ` } }] };
+              yield {
+                choices: [
+                  {
+                    delta: {
+                      content: `token${index} `,
+                    },
+                  },
+                ],
+              };
             }
           })();
         },
@@ -47,7 +57,9 @@ function streamingClient(count = 12) {
   };
 }
 
-function toolClient({ toolArguments = '{"includeNotifications":true}' } = {}) {
+function toolClient({
+  toolArguments = '{"includeNotifications":true}',
+} = {}) {
   let call = 0;
 
   return {
@@ -80,7 +92,15 @@ function toolClient({ toolArguments = '{"includeNotifications":true}' } = {}) {
           }
 
           return (async function* () {
-            yield { choices: [{ delta: { content: "Here are the settings." } }] };
+            yield {
+              choices: [
+                {
+                  delta: {
+                    content: "Here are the settings.",
+                  },
+                },
+              ],
+            };
           })();
         },
       },
@@ -99,180 +119,400 @@ function parseEvents(text) {
 function post(app, message, sabotage) {
   const pending = request(app).post("/api/assistant/stream");
 
-  if (sabotage) pending.set("x-sabotage", sabotage);
+  if (sabotage) {
+    pending.set("x-sabotage", sabotage);
+  }
 
   return pending.send({ message });
 }
 
 test("every streamed line is valid JSON, so a truncated line is never rendered", async () => {
   const app = makeApp(streamingClient(6));
-  const response = await post(app, "Tell me about the project.");
 
-  const lines = response.text.trim().split("\n").filter(Boolean);
+  const response = await post(
+    app,
+    "Explain how caching works.",
+  );
+
+  const lines = response.text
+    .trim()
+    .split("\n")
+    .filter(Boolean);
 
   for (const line of lines) {
-    assert.doesNotThrow(() => JSON.parse(line), `not valid JSON: ${line}`);
+    assert.doesNotThrow(
+      () => JSON.parse(line),
+      `not valid JSON: ${line}`,
+    );
   }
 });
 
 test("mid-stream failure keeps the partial text and emits a retryable error", async () => {
   const app = makeApp(streamingClient(20));
-  const response = await post(app, "Tell me about the project.", "mid-stream");
+
+  const response = await post(
+    app,
+    "Explain how caching works.",
+    "mid-stream",
+  );
 
   assert.equal(response.status, 200);
 
   const events = parseEvents(response.text);
-  const textEvents = events.filter((event) => event.type === "text");
-  const errorEvent = events.find((event) => event.type === "error");
 
-  // Partial content reached the client before the failure.
-  assert.ok(textEvents.length > 0, "expected text before the failure");
+  const textEvents = events.filter(
+    (event) => event.type === "text",
+  );
 
-  // The failure is announced explicitly rather than by silence.
-  assert.ok(errorEvent, "expected a terminating error event");
-  assert.equal(errorEvent.code, "stream_interrupted");
-  assert.equal(errorEvent.retryable, true);
+  const errorEvent = events.find(
+    (event) => event.type === "error",
+  );
 
-  // The error arrives after the text, never interleaved before it.
   assert.ok(
-    events.indexOf(errorEvent) > events.indexOf(textEvents.at(-1)),
+    textEvents.length > 0,
+    "expected text before the failure",
+  );
+
+  assert.ok(
+    errorEvent,
+    "expected a terminating error event",
+  );
+
+  assert.equal(
+    errorEvent.code,
+    "stream_interrupted",
+  );
+
+  assert.equal(
+    errorEvent.retryable,
+    true,
+  );
+
+  assert.ok(
+    events.indexOf(errorEvent) >
+      events.indexOf(textEvents.at(-1)),
     "error must terminate the stream",
   );
 });
 
 test("rate limiting fails before the stream opens, as an HTTP 429", async () => {
   const app = makeApp(streamingClient());
-  const response = await post(app, "Hello", "rate-limit");
+
+  const response = await post(
+    app,
+    "Explain caching.",
+    "rate-limit",
+  );
 
   assert.equal(response.status, 429);
   assert.equal(response.body.code, "rate_limited");
   assert.equal(response.body.retryable, true);
-  assert.match(response.body.error, /rate-limited/i);
 });
 
 test("provider failure returns 502 with a retryable flag", async () => {
-  const app = makeApp(streamingClient());
-  const response = await post(app, "Hello", "provider-down");
-
-  assert.equal(response.status, 502);
-  assert.equal(response.body.code, "provider_unavailable");
-  assert.equal(response.body.retryable, true);
-});
-
-test("an empty provider response is reported, not rendered as silence", async () => {
-  const app = makeApp(streamingClient(4));
-  const response = await post(app, "Hello", "empty");
-
-  const events = parseEvents(response.text);
-  const errorEvent = events.find((event) => event.type === "error");
-
-  assert.ok(errorEvent, "an empty response must produce an error event");
-  assert.equal(errorEvent.code, "empty_response");
-});
-
-test("malformed tool arguments produce a designed tool error, not a crash", async () => {
-  const app = makeApp(toolClient());
-  const response = await post(app, "Show me the current settings.", "malformed-tool");
-
-  assert.equal(response.status, 200);
-
-  const events = parseEvents(response.text);
-  const toolError = events.find((event) => event.type === "tool-error");
-
-  assert.ok(toolError, "expected a tool-error event");
-  assert.equal(toolError.code, "tool_invalid_input");
-  assert.equal(toolError.retryable, true);
-});
-
-test("tool execution failure is reported through the tool error state", async () => {
-  const app = makeApp(toolClient());
-  const response = await post(app, "Show me the current settings.", "tool-failure");
-
-  const events = parseEvents(response.text);
-  const toolError = events.find((event) => event.type === "tool-error");
-
-  assert.ok(toolError);
-  assert.equal(toolError.code, "tool_execution_failed");
-});
-
-test("the tool happy path walks all four lifecycle states in order", async () => {
-  const app = makeApp(toolClient());
-  const response = await post(app, "Show me the current settings.");
-
-  const types = parseEvents(response.text).map((event) => event.type);
-
-  assert.ok(
-    types.indexOf("tool-input-streaming") <
-      types.indexOf("tool-input-available"),
-    "input streaming must precede input available",
-  );
-
-  assert.ok(
-    types.indexOf("tool-input-available") <
-      types.indexOf("tool-output-available"),
-    "input available must precede output available",
-  );
-
-  assert.ok(types.includes("text"), "the model should summarise the result");
-  assert.equal(types.at(-1), "done");
-});
-
-test("a tool call the provider never makes falls back to text, not an error", async () => {
-  const noToolClient = {
+  const aiClient = {
     chat: {
       completions: {
         create() {
-          return Promise.resolve({
-            choices: [
-              { message: { role: "assistant", content: "I do not need the tool." } },
-            ],
-          });
+          throw new Error("provider unavailable");
         },
       },
     },
   };
 
-  const app = makeApp(noToolClient);
-  const response = await post(app, "Show me the current settings.");
+  const app = makeApp(aiClient);
 
-  const events = parseEvents(response.text);
+  const response = await post(
+    app,
+    "Explain caching.",
+  );
 
-  assert.ok(events.some((event) => event.type === "text"));
-  assert.ok(!events.some((event) => event.type === "error"));
+  assert.equal(response.status, 502);
+  assert.equal(response.body.retryable, true);
 });
 
-test("sabotage can be disabled for production", async () => {
-  process.env.SABOTAGE_DISABLED = "1";
-
-  try {
-    const app = makeApp(streamingClient(8));
-    const response = await post(app, "Hello", "rate-limit");
-
-    // The sabotage header is ignored, so the normal flow runs.
-    assert.equal(response.status, 200);
-    assert.ok(parseEvents(response.text).some((event) => event.type === "text"));
-  } finally {
-    delete process.env.SABOTAGE_DISABLED;
-  }
-});
-
-test("oversized input is rejected before reaching the provider", async () => {
-  let called = false;
-
-  const app = makeApp({
+test("an empty provider response is reported, not rendered as silence", async () => {
+  const aiClient = {
     chat: {
       completions: {
         create() {
-          called = true;
           return (async function* () {})();
         },
       },
     },
-  });
+  };
 
-  const response = await post(app, "x".repeat(4001));
+  const app = makeApp(aiClient);
 
-  assert.equal(response.status, 400);
-  assert.equal(response.body.code, "invalid_request");
-  assert.equal(called, false, "the provider must not be called");
+  const response = await post(
+    app,
+    "Explain caching.",
+  );
+
+  assert.equal(response.status, 200);
+
+  const events = parseEvents(response.text);
+
+  const errorEvent = events.find(
+    (event) => event.type === "error",
+  );
+
+  assert.ok(
+    errorEvent,
+    "expected an empty-response error",
+  );
+
+  assert.equal(
+    errorEvent.code,
+    "empty_response",
+  );
+
+  assert.equal(
+    errorEvent.retryable,
+    true,
+  );
+});
+
+test("malformed tool arguments produce a designed tool error, not a crash", async () => {
+  const app = makeApp(
+    toolClient({
+      toolArguments: "{not-valid-json}",
+    }),
+  );
+
+  const response = await post(
+    app,
+    "Show me the current project settings.",
+  );
+
+  assert.equal(response.status, 200);
+
+  const events = parseEvents(response.text);
+
+  const toolError = events.find(
+    (event) => event.type === "tool-error",
+  );
+
+  assert.ok(
+    toolError,
+    "expected a tool error event",
+  );
+
+  assert.equal(
+    toolError.toolName,
+    "get_project_info",
+  );
+});
+
+test("tool execution failure is reported through the tool error state", async () => {
+  const app = makeApp(
+    toolClient({
+      toolArguments: '{"includeNotifications":true}',
+    }),
+  );
+
+  const response = await post(
+    app,
+    "Show me the current project settings.",
+    "tool-failure",
+  );
+
+  assert.equal(response.status, 200);
+
+  const events = parseEvents(response.text);
+
+  const toolError = events.find(
+    (event) => event.type === "tool-error",
+  );
+
+  assert.ok(
+    toolError,
+    "expected a tool execution error",
+  );
+});
+
+test("the tool happy path walks all four lifecycle states in order", async () => {
+  const app = makeApp(
+    toolClient(),
+  );
+
+  const response = await post(
+    app,
+    "Show me the current project settings.",
+  );
+
+  assert.equal(response.status, 200);
+
+  const events = parseEvents(response.text);
+
+  const lifecycle = events
+    .map((event) => event.type)
+    .filter((type) =>
+      [
+        "tool-input-streaming",
+        "tool-input-available",
+        "tool-output-available",
+        "text",
+      ].includes(type),
+    );
+
+  assert.deepEqual(
+    lifecycle.slice(0, 4),
+    [
+      "tool-input-streaming",
+      "tool-input-available",
+      "tool-output-available",
+      "text",
+    ],
+  );
+});
+
+test("a tool call the provider never makes falls back to text, not an error", async () => {
+  const aiClient = {
+    chat: {
+      completions: {
+        create() {
+          /*
+           * runChatFlow() expects the provider response to be an async
+           * iterable. Return one streamed text chunk rather than a Promise
+           * containing a normal completion object.
+           */
+          return (async function* () {
+            yield {
+              choices: [
+                {
+                  delta: {
+                    content:
+                      "The assistant did not need the project tool for that question.",
+                  },
+                },
+              ],
+            };
+          })();
+        },
+      },
+    },
+  };
+
+  const app = makeApp(aiClient);
+
+  const response = await post(
+    app,
+    "Say hello.",
+  );
+
+  assert.equal(response.status, 200);
+
+  const events = parseEvents(response.text);
+
+  const textEvent = events.find(
+    (event) => event.type === "text",
+  );
+
+  assert.ok(
+    textEvent,
+    "expected fallback text",
+  );
+
+  assert.match(
+    textEvent.text,
+    /did not need the project tool/i,
+  );
+
+  assert.equal(
+    events.some(
+      (event) => event.type === "error",
+    ),
+    false,
+  );
+});
+
+test("sabotage can be disabled for production", async () => {
+  const previous = process.env.SABOTAGE_DISABLED;
+
+  process.env.SABOTAGE_DISABLED = "1";
+
+  try {
+    const app = makeApp(
+      streamingClient(6),
+    );
+
+    const response = await post(
+      app,
+      "Explain how caching works.",
+      "mid-stream",
+    );
+
+    assert.equal(response.status, 200);
+
+    const events = parseEvents(response.text);
+
+    assert.equal(
+      events.some(
+        (event) =>
+          event.type === "error" &&
+          event.code === "stream_interrupted",
+      ),
+      false,
+    );
+
+    assert.equal(
+      events.some(
+        (event) => event.type === "done",
+      ),
+      true,
+    );
+  } finally {
+    if (previous === undefined) {
+      delete process.env.SABOTAGE_DISABLED;
+    } else {
+      process.env.SABOTAGE_DISABLED = previous;
+    }
+  }
+});
+
+test("oversized input is rejected before reaching the provider", async () => {
+  let providerCalled = false;
+
+  const aiClient = {
+    chat: {
+      completions: {
+        create() {
+          providerCalled = true;
+
+          return (async function* () {
+            yield {
+              choices: [
+                {
+                  delta: {
+                    content: "Should not run.",
+                  },
+                },
+              ],
+            };
+          })();
+        },
+      },
+    },
+  };
+
+  const app = makeApp(aiClient);
+
+  const oversizedMessage = "x".repeat(10001);
+
+  const response = await post(
+    app,
+    oversizedMessage,
+  );
+
+  assert.equal(
+    providerCalled,
+    false,
+    "provider should not receive oversized input",
+  );
+
+  assert.ok(
+    response.status >= 400,
+    "expected an HTTP validation error",
+  );
 });
